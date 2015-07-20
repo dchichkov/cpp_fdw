@@ -2,7 +2,7 @@
  *
  * cpp_fdw.h
  *
- * Type and function declarations for JSON foreign data wrapper.
+ * Type and function declarations for CPP foreign data wrapper.
  *
  * Copyright (c) 2013, Citus Data, Inc.
  *
@@ -11,8 +11,8 @@
  *-------------------------------------------------------------------------
  */
 
-#ifndef JSON_FDW_H
-#define JSON_FDW_H
+#ifndef CPP_FDW_H
+#define CPP_FDW_H
 
 #include "fmgr.h"
 #include "catalog/pg_foreign_server.h"
@@ -28,7 +28,7 @@
 #define OPTION_NAME_HDFS_DIRECTORY_PATH "hdfs_directory_path"
 #define DEFAULT_MAX_ERROR_COUNT 0
 
-#define JSON_TUPLE_COST_MULTIPLIER 10
+#define CPP_TUPLE_COST_MULTIPLIER 10
 #define ERROR_BUFFER_SIZE 1024
 #define READ_BUFFER_SIZE 4096
 #define GZIP_FILE_EXTENSION ".gz"
@@ -37,21 +37,21 @@
 
 
 /*
- * JsonValidOption keeps an option name and a context. When an option is passed
+ * CppValidOption keeps an option name and a context. When an option is passed
  * into cpp_fdw objects (server and foreign table), we compare this option's
  * name and context against those of valid options.
  */
-typedef struct JsonValidOption
+typedef struct CppValidOption
 {
 	const char *optionName;
 	Oid optionContextId;
 
-} JsonValidOption;
+} CppValidOption;
 
 
 /* Array of options that are valid for cpp_fdw */
 static const uint32 ValidOptionCount = 3;
-static const JsonValidOption ValidOptionArray[] =
+static const CppValidOption ValidOptionArray[] =
 {
 	/* foreign table options */
 	{ OPTION_NAME_FILENAME, ForeignTableRelationId },
@@ -61,24 +61,24 @@ static const JsonValidOption ValidOptionArray[] =
 
 
 /*
- * JsonFdwOptions holds the option values to be used when reading and parsing
+ * CppFdwOptions holds the option values to be used when reading and parsing
  * the cpp file. To resolve these values, we first check foreign table's 
  * options, and if not present, we then fall back to the default values 
  * specified above.
  */
-typedef struct JsonFdwOptions
+typedef struct CppFdwOptions
 {
 	char *filename;
 	int32 maxErrorCount;
 
-} JsonFdwOptions;
+} CppFdwOptions;
 
 
 /*
- * JsonFdwExecState keeps foreign data wrapper specific execution state that we
+ * CppFdwExecState keeps foreign data wrapper specific execution state that we
  * create and hold onto when executing the query.
  */
-typedef struct JsonFdwExecState
+typedef struct CppFdwExecState
 {
 	char *filename;
 	FILE *filePointer;
@@ -88,13 +88,13 @@ typedef struct JsonFdwExecState
 	uint32 currentLineNumber;
 	HTAB *columnMappingHash;
 
-} JsonFdwExecState;
+} CppFdwExecState;
 
 
 /*
  * ColumnMapping reprents a hash table entry that maps a column name to column
  * related information. We construct these hash table entries to speed up the
- * conversion from JSON documents to PostgreSQL tuples; and each hash entry maps
+ * conversion from CPP documents to PostgreSQL tuples; and each hash entry maps
  * the column name to the column's tuple index and its type-related information.
  */
 typedef struct ColumnMapping
@@ -113,4 +113,4 @@ extern Datum cpp_fdw_handler(PG_FUNCTION_ARGS);
 extern Datum cpp_fdw_validator(PG_FUNCTION_ARGS);
 
 
-#endif   /* JSON_FDW_H */
+#endif   /* CPP_FDW_H */

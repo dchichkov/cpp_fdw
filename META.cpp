@@ -1,13 +1,13 @@
 {
    "name": "cpp_fdw",
-   "abstract": "Foreign Data Wrapper for JSON files",
-   "description": "PostgreSQL extension which implements a Foreign Data Wrapper (FDW) for JSON files.",
+   "abstract": "Foreign Data Wrapper for CPP files",
+   "description": "PostgreSQL extension which implements a Foreign Data Wrapper (FDW) for CPP files.",
    "version": "1.0.0",
    "maintainer": "Hadi Moshayedi <hadi@citusdata.com>",
    "license": "gpl_3",
    "provides": {
       "cpp_fdw": {
-         "abstract": "Foreign Data Wrapper for JSON files",
+         "abstract": "Foreign Data Wrapper for CPP files",
          "file": "cpp_fdw.c",
          "docfile": "README.md",
          "version": "1.0.0"

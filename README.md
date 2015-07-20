@@ -1,13 +1,13 @@
 cpp_fdw
 ========
 
-This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for JSON
+This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for CPP
 files. The extension doesn't require any data to be loaded into the database,
 and supports analytic queries against array types, nested fields, and
 heterogeneous documents.
 
-cpp\_fdw currently only works with PostgreSQL 9.2, and uses YAJL to parse JSON
-files. Future releases of this wrapper will use the JSON parser functions that
+cpp\_fdw currently only works with PostgreSQL 9.2, and uses YAJL to parse CPP
+files. Future releases of this wrapper will use the CPP parser functions that
 are to going to be introduced in the PostgreSQL 9.3 release.
 
 
@@ -48,21 +48,21 @@ bin/ directory path. For example:
 Usage
 -----
 
-These two parameters can be set on a JSON foreign table object.
+These two parameters can be set on a CPP foreign table object.
 
  * filename: The absolute path of a cpp file or a gzipped cpp file.
  * max\_error\_count: Maximum number of invalid cpp documents to skip before
    erroring out. Defaults to 0.
 
-As an example, we demonstrate querying a compressed JSON file from scratch
-here. We note that the underlying file contains JSON documents separated by
+As an example, we demonstrate querying a compressed CPP file from scratch
+here. We note that the underlying file contains CPP documents separated by
 newlines, and that no data needs to be loaded into the database. Let's now start
 with downloading the file.
 
     wget http://examples.citusdata.com/customer_reviews_nested_1998.cpp.gz
 
 Next, let's log into Postgres, and run the following commands to create a
-foreign table associated with this JSON file.
+foreign table associated with this CPP file.
 
     -- load extension first time after install
     CREATE EXTENSION cpp_fdw;
@@ -87,7 +87,7 @@ foreign table associated with this JSON file.
     -- optionally, collect data distribution statistics
     ANALYZE customer_reviews;
 
-Finally, let's run some example SQL queries on your JSON file.
+Finally, let's run some example SQL queries on your CPP file.
 
     -- find all reviews a particular customer made on the Dune series in 1998
 
@@ -121,8 +121,8 @@ Table Schema Conventions
 ------------------------
 
 There are three things worth noting about table schemas. First, nested fields in
-JSON documents are referenced using dot separators. For example, a field defined
-as "review": { "rating" : 5 } in a JSON document is declared as "review.rating"
+CPP documents are referenced using dot separators. For example, a field defined
+as "review": { "rating" : 5 } in a CPP document is declared as "review.rating"
 in the foreign table schema. The quotes around "review.rating" are necessary, as
 identifiers that include dots aren't valid in Postgres otherwise.
 
@@ -141,9 +141,9 @@ Querying Multiple Files
 -----------------------
 
 cpp\_fdw borrows its semantics from file\_fdw, and associates one foreign table
-with one JSON file. If you'd like to query all your JSON files from one table,
+with one CPP file. If you'd like to query all your CPP files from one table,
 you could take one of two approaches. You could either use PostgreSQL's basic
-table partitioning feature, and manually create one child table per JSON file.
+table partitioning feature, and manually create one child table per CPP file.
 
 Alternatively, you could use CitusDB binaries, and "stage" data into a
 distributed foreign table. With this approach, you can also have the database
@@ -156,7 +156,7 @@ documentation page at [http://citusdata.com/docs/foreign-data](http://citusdata.
 Limitations
 -----------
 
-* cpp\_fdw only supports files that consist of one JSON document per line. It
+* cpp\_fdw only supports files that consist of one CPP document per line. It
   doesn't support objects that span multiple lines.
 
 * PostgreSQL limits column names to 63 characters by default. If you need column

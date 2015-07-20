@@ -2,7 +2,7 @@
  *
  * cpp_fdw.c
  *
- * Function definitions for JSON foreign data wrapper.
+ * Function definitions for CPP foreign data wrapper.
  *
  * Copyright (c) 2013, Citus Data, Inc.
  *
@@ -55,21 +55,21 @@
 
 /* Local functions forward declarations */
 static StringInfo OptionNamesString(Oid currentContextId);
-static void JsonGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel,
+static void CppGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel,
 								  Oid foreignTableId);
-static void JsonGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel,
+static void CppGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel,
 								Oid foreignTableId);
-static ForeignScan * JsonGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
+static ForeignScan * CppGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 				   						Oid foreignTableId, ForeignPath *bestPath,
 				   						List *targetList, List *scanClauses);
-static void JsonExplainForeignScan(ForeignScanState *scanState, 
+static void CppExplainForeignScan(ForeignScanState *scanState, 
 								   ExplainState *explainState);
-static void JsonBeginForeignScan(ForeignScanState *scanState, int executorFlags);
-static TupleTableSlot * JsonIterateForeignScan(ForeignScanState *scanState);
-static void JsonReScanForeignScan(ForeignScanState *scanState);
-static void JsonEndForeignScan(ForeignScanState *scanState);
-static JsonFdwOptions * JsonGetOptions(Oid foreignTableId);
-static char * JsonGetOptionValue(Oid foreignTableId, const char *optionName);
+static void CppBeginForeignScan(ForeignScanState *scanState, int executorFlags);
+static TupleTableSlot * CppIterateForeignScan(ForeignScanState *scanState);
+static void CppReScanForeignScan(ForeignScanState *scanState);
+static void CppEndForeignScan(ForeignScanState *scanState);
+static CppFdwOptions * CppGetOptions(Oid foreignTableId);
+static char * CppGetOptionValue(Oid foreignTableId, const char *optionName);
 static double TupleCount(RelOptInfo *baserel, const char *filename);
 static BlockNumber PageCount(const char *filename);
 static List * ColumnList(RelOptInfo *baserel);
@@ -85,10 +85,10 @@ static bool ColumnTypesCompatible(yajl_val cppValue, Oid columnTypeId);
 static bool ValidDateTimeFormat(const char *dateTimeString);
 static Datum ColumnValueArray(yajl_val cppArray, Oid valueTypeId, Oid valueTypeMod);
 static Datum ColumnValue(yajl_val cppValue, Oid columnTypeId, int32 columnTypeMod);
-static bool JsonAnalyzeForeignTable(Relation relation,
+static bool CppAnalyzeForeignTable(Relation relation,
 									AcquireSampleRowsFunc *acquireSampleRowsFunc,
 									BlockNumber *totalPageCount);
-static int JsonAcquireSampleRows(Relation relation, int logLevel,
+static int CppAcquireSampleRows(Relation relation, int logLevel,
 								 HeapTuple *sampleRows, int targetRowCount,
 								 double *totalRowCount, double *totalDeadRowCount);
 
@@ -109,15 +109,15 @@ cpp_fdw_handler(PG_FUNCTION_ARGS)
 {
 	FdwRoutine *fdwRoutine = makeNode(FdwRoutine);
 
-	fdwRoutine->GetForeignRelSize = JsonGetForeignRelSize;
-	fdwRoutine->GetForeignPaths = JsonGetForeignPaths;
-	fdwRoutine->GetForeignPlan = JsonGetForeignPlan;
-	fdwRoutine->ExplainForeignScan = JsonExplainForeignScan;
-	fdwRoutine->BeginForeignScan = JsonBeginForeignScan;
-	fdwRoutine->IterateForeignScan = JsonIterateForeignScan;
-	fdwRoutine->ReScanForeignScan = JsonReScanForeignScan;
-	fdwRoutine->EndForeignScan = JsonEndForeignScan;
-	fdwRoutine->AnalyzeForeignTable = JsonAnalyzeForeignTable;
+	fdwRoutine->GetForeignRelSize = CppGetForeignRelSize;
+	fdwRoutine->GetForeignPaths = CppGetForeignPaths;
+	fdwRoutine->GetForeignPlan = CppGetForeignPlan;
+	fdwRoutine->ExplainForeignScan = CppExplainForeignScan;
+	fdwRoutine->BeginForeignScan = CppBeginForeignScan;
+	fdwRoutine->IterateForeignScan = CppIterateForeignScan;
+	fdwRoutine->ReScanForeignScan = CppReScanForeignScan;
+	fdwRoutine->EndForeignScan = CppEndForeignScan;
+	fdwRoutine->AnalyzeForeignTable = CppAnalyzeForeignTable;
 
 	PG_RETURN_POINTER(fdwRoutine);
 }
@@ -148,7 +148,7 @@ cpp_fdw_validator(PG_FUNCTION_ARGS)
 		int32 optionIndex = 0;
 		for (optionIndex = 0; optionIndex < ValidOptionCount; optionIndex++)
 		{
-			const JsonValidOption *validOption = &(ValidOptionArray[optionIndex]);
+			const CppValidOption *validOption = &(ValidOptionArray[optionIndex]);
 
 			if ((optionContextId == validOption->optionContextId) &&
 				(strncmp(optionName, validOption->optionName, NAMEDATALEN) == 0))
@@ -202,7 +202,7 @@ OptionNamesString(Oid currentContextId)
 	int32 optionIndex = 0;
 	for (optionIndex = 0; optionIndex < ValidOptionCount; optionIndex++)
 	{
-		const JsonValidOption *validOption = &(ValidOptionArray[optionIndex]);
+		const CppValidOption *validOption = &(ValidOptionArray[optionIndex]);
 
 		/* if option belongs to current context, append option name */
 		if (currentContextId == validOption->optionContextId)
@@ -222,13 +222,13 @@ OptionNamesString(Oid currentContextId)
 
 
 /*
- * JsonGetForeignRelSize obtains relation size estimates for a foreign table and
+ * CppGetForeignRelSize obtains relation size estimates for a foreign table and
  * puts its estimate for row count into baserel->rows.
  */
 static void
-JsonGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId)
+CppGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId)
 {
-	JsonFdwOptions *options = JsonGetOptions(foreignTableId);
+	CppFdwOptions *options = CppGetOptions(foreignTableId);
 
 	double tupleCount = TupleCount(baserel, options->filename);
 	double rowSelectivity = clauselist_selectivity(root, baserel->baserestrictinfo,
@@ -240,15 +240,15 @@ JsonGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId
 
 
 /*
- * JsonGetForeignPaths creates possible access paths for a scan on the foreign
+ * CppGetForeignPaths creates possible access paths for a scan on the foreign
  * table. Currently we only have one possible access path, which simply returns
  * all records in the order they appear in the underlying file.
  */
 static void
-JsonGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId)
+CppGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId)
 {
 	Path *foreignScanPath = NULL;
-	JsonFdwOptions *options = JsonGetOptions(foreignTableId);
+	CppFdwOptions *options = CppGetOptions(foreignTableId);
 
 	BlockNumber pageCount = PageCount(options->filename);
 	double tupleCount = TupleCount(baserel, options->filename);
@@ -259,7 +259,7 @@ JsonGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId)
 	 * However, we take per-tuple CPU costs as 10x of a seqscan to account for
 	 * the cost of parsing records.
 	 */
-	double tupleParseCost = cpu_tuple_cost * JSON_TUPLE_COST_MULTIPLIER;
+	double tupleParseCost = cpu_tuple_cost * CPP_TUPLE_COST_MULTIPLIER;
 	double tupleFilterCost = baserel->baserestrictcost.per_tuple;
 	double cpuCostPerTuple = tupleParseCost + tupleFilterCost;
 	double executionCost = (seq_page_cost * pageCount) + (cpuCostPerTuple * tupleCount);
@@ -279,12 +279,12 @@ JsonGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId)
 
 
 /*
- * JsonGetForeignPlan creates a ForeignScan plan node for scanning the foreign
+ * CppGetForeignPlan creates a ForeignScan plan node for scanning the foreign
  * table. We also add the query column list to scan nodes private list, because
  * we need it later for mapping columns.
  */
 static ForeignScan *
-JsonGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId,
+CppGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId,
 				   ForeignPath *bestPath, List *targetList, List *scanClauses)
 {
 	ForeignScan *foreignScan = NULL;
@@ -316,14 +316,14 @@ JsonGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreignTableId,
 }
 
 
-/* JsonExplainForeignScan produces extra output for the Explain command. */
+/* CppExplainForeignScan produces extra output for the Explain command. */
 static void
-JsonExplainForeignScan(ForeignScanState *scanState, ExplainState *explainState)
+CppExplainForeignScan(ForeignScanState *scanState, ExplainState *explainState)
 {
 	Oid foreignTableId = RelationGetRelid(scanState->ss.ss_currentRelation);
-	JsonFdwOptions *options = JsonGetOptions(foreignTableId);
+	CppFdwOptions *options = CppGetOptions(foreignTableId);
 
-	ExplainPropertyText("Json File", options->filename, explainState);
+	ExplainPropertyText("Cpp File", options->filename, explainState);
 
 	/* supress file size if we're not showing cost details */
 	if (explainState->costs)
@@ -333,7 +333,7 @@ JsonExplainForeignScan(ForeignScanState *scanState, ExplainState *explainState)
 		int statResult = stat(options->filename, &statBuffer);
 		if (statResult == 0)
 		{
-			ExplainPropertyLong("Json File Size", (long) statBuffer.st_size, 
+			ExplainPropertyLong("Cpp File Size", (long) statBuffer.st_size, 
 								explainState);
 		}
 	}
@@ -341,18 +341,18 @@ JsonExplainForeignScan(ForeignScanState *scanState, ExplainState *explainState)
 
 
 /*
- * JsonBeginForeignScan opens the underlying cpp file for reading. The function
+ * CppBeginForeignScan opens the underlying cpp file for reading. The function
  * also creates a hash table that maps referenced column names to column index
  * and type information.
  */
 static void
-JsonBeginForeignScan(ForeignScanState *scanState, int executorFlags)
+CppBeginForeignScan(ForeignScanState *scanState, int executorFlags)
 {
-	JsonFdwExecState *execState = NULL;
+	CppFdwExecState *execState = NULL;
 	ForeignScan *foreignScan = NULL;
 	List *foreignPrivateList = NULL;
 	Oid foreignTableId = InvalidOid;
-	JsonFdwOptions *options = NULL;
+	CppFdwOptions *options = NULL;
 	List *columnList = NULL;
 	HTAB *columnMappingHash = NULL;
 	bool gzipFile = false;
@@ -367,7 +367,7 @@ JsonBeginForeignScan(ForeignScanState *scanState, int executorFlags)
 	}
 
 	foreignTableId = RelationGetRelid(scanState->ss.ss_currentRelation);
-	options = JsonGetOptions(foreignTableId);
+	options = CppGetOptions(foreignTableId);
 
 	foreignScan = (ForeignScan *) scanState->ss.ps.plan;
 	foreignPrivateList = (List *) foreignScan->fdw_private;
@@ -399,7 +399,7 @@ JsonBeginForeignScan(ForeignScanState *scanState, int executorFlags)
 		}
 	}
 
-	execState = (JsonFdwExecState *) palloc(sizeof(JsonFdwExecState));
+	execState = (CppFdwExecState *) palloc(sizeof(CppFdwExecState));
 	execState->filename = options->filename;
 	execState->filePointer = filePointer;
 	execState->gzFilePointer = gzFilePointer;
@@ -413,14 +413,14 @@ JsonBeginForeignScan(ForeignScanState *scanState, int executorFlags)
 
 
 /*
- * JsonIterateForeignScan reads the next record from the data file, converts it 
+ * CppIterateForeignScan reads the next record from the data file, converts it 
  * to PostgreSQL tuple, and stores the converted tuple into the ScanTupleSlot as
  * a virtual tuple.
  */
 static TupleTableSlot *
-JsonIterateForeignScan(ForeignScanState *scanState)
+CppIterateForeignScan(ForeignScanState *scanState)
 {
-	JsonFdwExecState *execState = (JsonFdwExecState *) scanState->fdw_state;
+	CppFdwExecState *execState = (CppFdwExecState *) scanState->fdw_state;
 	TupleTableSlot *tupleSlot = scanState->ss.ss_ScanTupleSlot;
 	HTAB *columnMappingHash = execState->columnMappingHash;
 	char errorBuffer[ERROR_BUFFER_SIZE];
@@ -499,23 +499,23 @@ JsonIterateForeignScan(ForeignScanState *scanState)
 }
 
 
-/* JsonReScanForeignScan rescans the foreign table. */
+/* CppReScanForeignScan rescans the foreign table. */
 static void
-JsonReScanForeignScan(ForeignScanState *scanState)
+CppReScanForeignScan(ForeignScanState *scanState)
 {
-	JsonEndForeignScan(scanState);
-	JsonBeginForeignScan(scanState, 0);
+	CppEndForeignScan(scanState);
+	CppBeginForeignScan(scanState, 0);
 }
 
 
 /*
- * JsonEndForeignScan finishes scanning the foreign table, and frees the acquired
+ * CppEndForeignScan finishes scanning the foreign table, and frees the acquired
  * resources.
  */
 static void
-JsonEndForeignScan(ForeignScanState *scanState)
+CppEndForeignScan(ForeignScanState *scanState)
 {
-	JsonFdwExecState *executionState = (JsonFdwExecState *) scanState->fdw_state;
+	CppFdwExecState *executionState = (CppFdwExecState *) scanState->fdw_state;
 	if (executionState == NULL)
 	{
 		return;
@@ -553,21 +553,21 @@ JsonEndForeignScan(ForeignScanState *scanState)
 
 
 /*
- * JsonGetOptions returns the option values to be used when reading and parsing 
+ * CppGetOptions returns the option values to be used when reading and parsing 
  * the cpp file. To resolve these values, the function checks options for the
  * foreign table, and if not present, falls back to default values.
  */
-static JsonFdwOptions *
-JsonGetOptions(Oid foreignTableId)
+static CppFdwOptions *
+CppGetOptions(Oid foreignTableId)
 {
-	JsonFdwOptions *cppFdwOptions = NULL;
+	CppFdwOptions *cppFdwOptions = NULL;
 	char *filename = NULL;
 	int32 maxErrorCount = 0;
 	char *maxErrorCountString = NULL;
 
-	filename = JsonGetOptionValue(foreignTableId, OPTION_NAME_FILENAME);
+	filename = CppGetOptionValue(foreignTableId, OPTION_NAME_FILENAME);
 
-	maxErrorCountString = JsonGetOptionValue(foreignTableId, OPTION_NAME_MAX_ERROR_COUNT);
+	maxErrorCountString = CppGetOptionValue(foreignTableId, OPTION_NAME_MAX_ERROR_COUNT);
 	if (maxErrorCountString == NULL)
 	{
 		maxErrorCount = DEFAULT_MAX_ERROR_COUNT;
@@ -577,7 +577,7 @@ JsonGetOptions(Oid foreignTableId)
 		maxErrorCount = pg_atoi(maxErrorCountString, sizeof(int32), 0);
 	}
 
-	cppFdwOptions = (JsonFdwOptions *) palloc0(sizeof(JsonFdwOptions));
+	cppFdwOptions = (CppFdwOptions *) palloc0(sizeof(CppFdwOptions));
 	cppFdwOptions->filename = filename;
 	cppFdwOptions->maxErrorCount = maxErrorCount;
 
@@ -586,12 +586,12 @@ JsonGetOptions(Oid foreignTableId)
 
 
 /*
- * Json GetOptionValue walks over foreign table and foreign server options, and
+ * Cpp GetOptionValue walks over foreign table and foreign server options, and
  * looks for the option with the given name. If found, the function returns the
  * option's value. This function is unchanged from mongo_fdw.
  */
 static char *
-JsonGetOptionValue(Oid foreignTableId, const char *optionName)
+CppGetOptionValue(Oid foreignTableId, const char *optionName)
 {
 	ForeignTable *foreignTable = NULL;
 	ForeignServer *foreignServer = NULL;
@@ -753,7 +753,7 @@ ColumnList(RelOptInfo *baserel)
 
 /*
  * ColumnMappingHash creates a hash table that maps column names to column index
- * and types. This table helps us quickly translate JSON document key/values to
+ * and types. This table helps us quickly translate CPP document key/values to
  * corresponding PostgreSQL columns. This function is unchanged from mongo_fdw.
  */
 static HTAB *
@@ -1108,7 +1108,7 @@ ColumnTypesCompatible(yajl_val cppValue, Oid columnTypeId)
 			/*
 			 * We currently error out on other data types. Some types such as
 			 * byte arrays are easy to add, but they need testing. Other types
-			 * such as money or inet, do not have equivalents in JSON.
+			 * such as money or inet, do not have equivalents in CPP.
 			 */
 			ereport(ERROR, (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
 							errmsg("cannot convert cpp type to column type"),
@@ -1326,16 +1326,16 @@ ColumnValue(yajl_val cppValue, Oid columnTypeId, int32 columnTypeMod)
 
 
 /*
- * JsonAnalyzeForeignTable sets the total page count and the function pointer
+ * CppAnalyzeForeignTable sets the total page count and the function pointer
  * used to acquire a random sample of rows from the foreign file.
  */
 static bool
-JsonAnalyzeForeignTable(Relation relation,
+CppAnalyzeForeignTable(Relation relation,
 						AcquireSampleRowsFunc *acquireSampleRowsFunc,
 						BlockNumber *totalPageCount)
 {
 	Oid foreignTableId = RelationGetRelid(relation);
-	JsonFdwOptions *options = JsonGetOptions(foreignTableId);
+	CppFdwOptions *options = CppGetOptions(foreignTableId);
 	BlockNumber pageCount = 0;
 	struct stat statBuffer;
 
@@ -1358,14 +1358,14 @@ JsonAnalyzeForeignTable(Relation relation,
 	}
 
 	(*totalPageCount) = pageCount;
-	(*acquireSampleRowsFunc) = JsonAcquireSampleRows;
+	(*acquireSampleRowsFunc) = CppAcquireSampleRows;
 
 	return true;
 }
 
 
 /*
- * JsonAcquireSampleRows acquires a random sample of rows from the foreign
+ * CppAcquireSampleRows acquires a random sample of rows from the foreign
  * table. Selected rows are returned in the caller allocated sampleRows array,
  * which must have at least target row count entries. The actual number of rows
  * selected is returned as the function result. We also count the number of rows
@@ -1373,12 +1373,12 @@ JsonAnalyzeForeignTable(Relation relation,
  * row count to zero.
  *
  * Note that the returned list of rows does not always follow their actual order
- * in the JSON file. Therefore, correlation estimates derived later could be
+ * in the CPP file. Therefore, correlation estimates derived later could be
  * inaccurate, but that's OK. We currently don't use correlation estimates (the
  * planner only pays attention to correlation for index scans).
  */
 static int
-JsonAcquireSampleRows(Relation relation, int logLevel,
+CppAcquireSampleRows(Relation relation, int logLevel,
 					  HeapTuple *sampleRows, int targetRowCount,
 					  double *totalRowCount, double *totalDeadRowCount)
 {
@@ -1435,7 +1435,7 @@ JsonAcquireSampleRows(Relation relation, int logLevel,
 	scanState->ss.ps.plan = (Plan *) foreignScan;
 	scanState->ss.ss_ScanTupleSlot = scanTupleSlot;
 
-	JsonBeginForeignScan(scanState, executorFlags);
+	CppBeginForeignScan(scanState, executorFlags);
 
 	/*
 	 * Use per-tuple memory context to prevent leak of memory used to read and
@@ -1462,7 +1462,7 @@ JsonAcquireSampleRows(Relation relation, int logLevel,
 		MemoryContextSwitchTo(tupleContext);
 
 		/* read the next record */
-		JsonIterateForeignScan(scanState);
+		CppIterateForeignScan(scanState);
 
 		MemoryContextSwitchTo(oldContext);
 
@@ -1523,7 +1523,7 @@ JsonAcquireSampleRows(Relation relation, int logLevel,
 	pfree(columnValues);
 	pfree(columnNulls);
 
-	JsonEndForeignScan(scanState);
+	CppEndForeignScan(scanState);
 
 	/* emit some interesting relation info */
 	relationName = RelationGetRelationName(relation);
