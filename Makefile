@@ -1,8 +1,8 @@
-# contrib/json_fdw/Makefile
+# contrib/cpp_fdw/Makefile
 
-MODULE_big = json_fdw
+MODULE_big = cpp_fdw
 
-OBJS = json_fdw.o
+OBJS = cpp_fdw.o
 
 ifeq ($(shell uname -s), Linux)
     # Directly link against yajl 2, so it works in Ubuntu 12.04 too.
@@ -13,8 +13,8 @@ else
     SHLIB_LINK = -lz -lyajl
 endif
 
-EXTENSION = json_fdw
-DATA = json_fdw--1.0.sql
+EXTENSION = cpp_fdw
+DATA = cpp_fdw--1.0.sql
 
 REGRESS = basic_tests customer_reviews hdfs_block invalid_gz_file
 EXTRA_CLEAN = sql/basic_tests.sql expected/basic_tests.out \
