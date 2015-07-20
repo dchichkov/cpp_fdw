@@ -1,0 +1,5 @@
+# cpp_fdw extension
+comment = 'foreign-data wrapper for cpp file access'
+default_version = '1.0'
+module_pathname = '$libdir/cpp_fdw'
+relocatable = true
